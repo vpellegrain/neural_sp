@@ -163,10 +163,10 @@ class LRScheduler(object):
                     logger.info('Epoch %d: reducing learning rate to %.7f'
                                 % (self._epoch, self.lr))
             elif self.decay_type == 'always':
-                # if is_best:
-                #     self.not_improved_n_epochs = 0
-                # else:
-                #     self.not_improved_n_epochs += 1
+                if is_best:
+                    self.not_improved_n_epochs = 0
+                else:
+                    self.not_improved_n_epochs += 1
                 self.lr *= self.decay_rate
                 self._update_lr()
                 logger.info('Epoch %d: reducing learning rate to %.7f'

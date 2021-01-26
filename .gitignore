@@ -10,6 +10,7 @@ __pycache__
 .coverage
 coverage.xml
 neural_sp.egg-info
+tools/neural_sp
 
 # CI test
 example/ci_test/data

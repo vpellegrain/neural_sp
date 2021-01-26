@@ -11,6 +11,7 @@ unk="<unk>"
 space="<space>"
 nlsyms=""
 wp_model=""
+PYTHON="/gpfs/users/pellegrainv/.conda/envs/speech3.8/bin/python"
 
 . utils/parse_options.sh
 
@@ -28,7 +29,7 @@ trap 'rm -rf ${tmpdir}' EXIT
 cp ${tsv} ${tmpdir}/tmp.tsv
 
 # For additional unpaired text
-make_tsv.py --text ${text} \
+$PYTHON /gpfs/workdir/pellegrainv/packages/neural_sp/utils/make_tsv.py --text ${text} \
     --dict ${dict} \
     --unit ${unit} \
     --remove_space ${remove_space} \

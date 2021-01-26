@@ -81,6 +81,7 @@ nutt2spk=$(wc -l <$utt2spk)
 
 utils/data/get_utt2dur.sh $dst 1>&2 || exit 1
 
+
 utils/validate_data_dir.sh --no-feats $dst || exit 1;
 
 echo "$0: successfully prepared data in $dst"

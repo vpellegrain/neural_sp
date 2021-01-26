@@ -112,7 +112,6 @@ def main():
 
     # Model setting
     model = build_lm(args, save_path)
-
     if not args.resume:
         # Save conf file as a yaml file
         save_config(vars(args), os.path.join(save_path, 'conf.yml'))

@@ -1,52 +1,70 @@
 #!/bin/bash
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=50g
+#SBATCH --nodes=1
+#SBATCH --time=24:00:00
+#SBATCH --cpus-per-task=20
+#SBATCH --output=/gpfs/workdir/pellegrainv/logs/%j.stdout
+#SBATCH --error=/gpfs/workdir/pellegrainv/logs/%j.stderr
+#SBATCH --job-name=transformer_asr
 
-# Copyright 2018 Kyoto University (Hirofumi Inaguma)
-#  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+module load anaconda3/2020.02/gcc-9.2.0
+module load cuda/10.2.89/intel-19.0.3.199
+module load sox/14.4.2/gcc-9.2.0 
+module load gcc/9.2.0/gcc-4.8.5 
+module load gcc/8.4.0/gcc-4.8.5 
+module load intel-mkl/2020.2.254/intel-20.0.2
+module load flac/1.3.2/gcc-9.2.0
+
+
+
+source activate speech3.8
 
 echo ============================================================================
 echo "                                LibriSpeech                               "
 echo ============================================================================
 
 stage=0
-stop_stage=5
-gpu=
+stop_stage=3
+gpu=1
 benchmark=true
-speed_perturb=false
-stdout=false
+speed_perturb=true
+stdout=true
 
 ### vocabulary
 unit=wp      # word/wp/char/word_char/phone
-vocab=10000
+vocab=1024
 wp_type=bpe  # bpe/unigram (for wordpiece)
 
 #########################
 # ASR configuration
 #########################
-conf=conf/asr/blstm_las.yaml
-conf2=
+conf=conf/asr/transformer/transformer.yaml
+conf2=conf/data/spec_augment_speed_perturb_transformer.yaml
 asr_init=
 external_lm=
 
 #########################
 # LM configuration
 #########################
-lm_conf=conf/lm/rnnlm.yaml
+lm_conf=conf/lm/rnnlm_paper.yaml
 
 ### path to save the model
-model=/n/work2/inaguma/results/librispeech
+model=/$WORKDIR/results/LibriSpeech
 
 ### path to the model directory to resume training
 resume=
 lm_resume=
 
 ### path to save preproecssed data
-export data=/n/work2/inaguma/corpus/librispeech
-
+export data=/gpfs/workdir/pellegrainv/data/LibriSpeech/preprocessing
 ### path to download data
-data_download_path=/n/rd21/corpora_7/librispeech/
+data_download_path=/gpfs/workdir/pellegrainv/data/LibriSpeech/download
 
 ### data size
-datasize=960     # 100/460/960
+datasize=960    # 100/460/960
 lm_datasize=960  # 100/460/960
 use_external_text=true
 
@@ -82,8 +100,10 @@ lm_url=www.openslr.org/resources/11
 train_set=train_${datasize}
 dev_set=dev_other
 test_set="dev_clean dev_other test_clean test_other"
+sp=
 if [ ${speed_perturb} = true ]; then
     train_set=train_sp_${datasize}
+    sp=_sp
     dev_set=dev_other_sp
     test_set="dev_clean_sp dev_other_sp test_clean_sp test_other_sp"
 fi
@@ -94,6 +114,9 @@ fi
 if [ ${unit} != wp ]; then
     wp_type=
 fi
+
+
+PYTHON="/gpfs/users/pellegrainv/.conda/envs/speech3.8/bin/python"
 
 if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] && [ ! -e ${data}/.done_stage_0 ]; then
     echo ============================================================================
@@ -259,11 +282,11 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         mkdir -p ${data}/dataset_lm
         for x in train dev_clean dev_other test_clean test_other; do
             if [ ${lm_datasize} = ${datasize} ]; then
-                cp ${data}/dataset/${x}_${datasize}_${unit}${wp_type}${vocab}.tsv \
-                    ${data}/dataset_lm/${x}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
+                cp ${data}/dataset/${x}${sp}_${datasize}_${unit}${wp_type}${vocab}.tsv \
+                    ${data}/dataset_lm/${x}${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
             else
                 make_dataset.sh --unit ${unit} --wp_model ${wp_model} \
-                    ${data}/${x} ${dict} > ${data}/dataset_lm/${x}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
+                    ${data}/${x} ${dict} > ${data}/dataset_lm/${x}${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
             fi
         done
 
@@ -287,17 +310,17 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         lm_train_set="${data}/dataset_lm/train_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv"
     fi
 
-    lm_test_set="${data}/dataset_lm/dev_other_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
-                 ${data}/dataset_lm/test_clean_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
-                 ${data}/dataset_lm/test_other_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv"
+    lm_test_set="${data}/dataset_lm/dev_other${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
+                 ${data}/dataset_lm/test_clean${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
+                 ${data}/dataset_lm/test_other${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv"
 
-    CUDA_VISIBLE_DEVICES=${gpu} ${NEURALSP_ROOT}/neural_sp/bin/lm/train.py \
+    $PYTHON ${NEURALSP_ROOT}/neural_sp/bin/lm/train.py \
         --corpus librispeech \
         --config ${lm_conf} \
         --n_gpus ${n_gpus} \
         --cudnn_benchmark ${benchmark} \
         --train_set ${lm_train_set} \
-        --dev_set ${data}/dataset_lm/dev_clean_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
+        --dev_set ${data}/dataset_lm/dev_clean${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
         --eval_sets ${lm_test_set} \
         --unit ${unit} \
         --dict ${dict} \

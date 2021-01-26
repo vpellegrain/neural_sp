@@ -14,6 +14,7 @@ nlsyms=""
 wp_model=""
 wp_nbest=1
 text=
+PYTHON="/gpfs/users/pellegrainv/.conda/envs/speech3.8/bin/python"
 
 . utils/parse_options.sh
 
@@ -29,7 +30,8 @@ if [ -z ${text} ]; then
     text=${data}/text
 fi
 
-make_tsv.py --feat ${feat} \
+
+$PYTHON /gpfs/workdir/pellegrainv/packages/neural_sp/utils/make_tsv.py --feat ${feat} \
     --utt2num_frames ${data}/utt2num_frames \
     --utt2spk ${data}/utt2spk \
     --text ${text} \

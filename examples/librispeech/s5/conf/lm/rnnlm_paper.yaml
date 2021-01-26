@@ -1,9 +1,9 @@
 # topology
 lm_type: lstm
-n_units: 1024
-n_projs: 0
+n_units: 320
+n_projs: 640
 n_layers: 1  ###
-emb_dim: 1024
+emb_dim: 256
 n_units_null_context: 0
 tie_embedding: true
 residual: true
@@ -26,9 +26,9 @@ eval_start_epoch: 1
 param_init: 0.05
 # regularization
 clip_grad_norm: 1.0
-dropout_in: 0.1
-dropout_hidden: 0.1
-dropout_out: 0.1
+dropout_in: 0.3
+dropout_hidden: 0.3
+dropout_out: 0.3
 weight_decay: 1e-6
 lsm_prob: 0.0
 adaptive_softmax: false
