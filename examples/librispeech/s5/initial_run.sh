@@ -32,17 +32,23 @@ external_lm=
 #########################
 lm_conf=conf/lm/rnnlm.yaml
 
+
+#########################
+# Local conf
+#########################
+. ./conf.sh
+
 ### path to save the model
-model= /mnt/d/vpell/Documents/Thèse/Python/results
+model= ${ROOT}/results
 
 ### path to the model directory to resume training
 resume=
 lm_resume=
 
 ### path to save preproecssed data
-export data=/mnt/d/vpell/Documents/Thèse/Python/data/LibriSpeech/preprocessing
+export data=${ROOT}/data/LibriSpeech/preprocessing
 ### path to download data
-data_download_path=/mnt/d/vpell/Documents/Thèse/Python/data/LibriSpeech/download
+data_download_path=${ROOT}/data/LibriSpeech/download
 
 ### data size
 datasize=100     # 100/460/960
