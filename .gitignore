@@ -16,3 +16,5 @@ tools/neural_sp
 example/ci_test/data
 example/ci_test/results
 example/ci_test/sample
+examples/librispeech/s5/path.sh
+examples/librispeech/s5/conf.sh
