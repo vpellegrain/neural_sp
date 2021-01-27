@@ -7,8 +7,8 @@ echo ===========================================================================
 echo "                                LibriSpeech                               "
 echo ============================================================================
 
-stage=0
-stop_stage=0
+stage=3
+stop_stage=3
 gpu=1
 benchmark=true
 speed_perturb=true
@@ -40,7 +40,6 @@ lm_conf=conf/lm/rnnlm.yaml
 
 ### path to save the model
 model= ${ROOT}/results
-
 ### path to the model directory to resume training
 resume=
 lm_resume=
@@ -87,9 +86,11 @@ lm_url=www.openslr.org/resources/11
 train_set=train_${datasize}
 dev_set=dev_other
 test_set="dev_clean dev_other test_clean test_other"
+sp=
 if [ ${speed_perturb} = true ]; then
     train_set=train_sp_${datasize}
     dev_set=dev_other_sp
+    sp=_sp
     test_set="dev_clean_sp dev_other_sp test_clean_sp test_other_sp"
 fi
 
@@ -107,7 +108,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] && [ ! -e ${data}/.done_stage_0
 
     # download data
     mkdir -p ${data}
-    for part in dev-clean test-clean dev-other test-other train-clean-100 train-clean-360 train-other-500; do
+    for part in dev-clean test-clean dev-other test-other train-clean-100; do
         local/download_and_untar.sh ${data_download_path} ${data_url} ${part} || exit 1;
     done
 
@@ -115,14 +116,14 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] && [ ! -e ${data}/.done_stage_0
     local/download_lm.sh ${lm_url} ${data}/local/lm || exit 1;
 
     # format the data as Kaldi data directories
-    for part in dev-clean test-clean dev-other test-other train-clean-100 train-clean-360 train-other-500; do
+    for part in dev-clean test-clean dev-other test-other train-clean-100; do
         # use underscore-separated names in data directories.
         local/data_prep.sh ${data_download_path}/LibriSpeech/${part} ${data}/$(echo ${part} | sed s/-/_/g) || exit 1;
     done
 
     # when the "--stage 3" option is used below we skip the G2P steps, and use the
     # lexicon we have already downloaded from openslr.org/11/
-    local/prepare_dict.sh --stage 3 --nj 30 --cmd "$train_cmd" \
+    local/prepare_dict.sh --stage 3 --nj 10 --cmd "$train_cmd" \
         ${data}/local/lm ${data}/local/lm ${data}/local/dict_nosp
 
     # utils/prepare_lang.sh ${data}/local/dict_nosp \
@@ -130,7 +131,7 @@ if [ ${stage} -le 0 ] && [ ${stop_stage} -ge 0 ] && [ ! -e ${data}/.done_stage_0
     # local/format_lms.sh --src-dir ${data}/lang_nosp ${data}/local/lm
 
     # lowercasing
-    for x in dev_clean test_clean dev_other test_other train_clean_100 train_clean_360 train_other_500; do
+    for x in dev_clean test_clean dev_other test_other train_clean_100; do
         cp ${data}/${x}/text ${data}/${x}/text.org
         paste -d " " <(cut -f 1 -d " " ${data}/${x}/text.org) \
             <(cut -f 2- -d " " ${data}/${x}/text.org | awk '{print tolower($0)}') > ${data}/${x}/text
@@ -141,12 +142,12 @@ fi
 
 if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ] && [ ! -e ${data}/.done_stage_1_${datasize}_sp${speed_perturb} ]; then
     echo ============================================================================
-    echo "                    Feature extranction (stage:1)                          "
+    echo "                    Feature extraction (stage:1)                          "
     echo ============================================================================
 
     if [ ! -e ${data}/.done_stage_1_${datasize}_spfalse ]; then
         for x in dev_clean test_clean dev_other test_other train_clean_100; do
-            steps/make_fbank.sh --nj 32 --cmd "$train_cmd" --write_utt2num_frames true \
+            steps/make_fbank.sh --nj 10 --cmd "$train_cmd" --write_utt2num_frames true \
                 ${data}/${x} ${data}/log/make_fbank/${x} ${data}/fbank || exit 1;
         done
 
@@ -195,9 +196,10 @@ if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ] && [ ! -e ${data}/.done_stage_1
     touch ${data}/.done_stage_1_${datasize}_sp${speed_perturb} && echo "Finish feature extranction (stage: 1)."
 fi
 
+if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ] && [ ! -e ${data}/.done_stage_2_${datasize}_${unit}${wp_type}${vocab}_sp${speed_perturb} ]; then
+
 dict=${data}/dict/${train_set}_${unit}${wp_type}${vocab}.txt; mkdir -p ${data}/dict
 wp_model=${data}/dict/${train_set}_${wp_type}${vocab}
-if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ] && [ ! -e ${data}/.done_stage_2_${datasize}_${unit}${wp_type}${vocab}_sp${speed_perturb} ]; then
     echo ============================================================================
     echo "                      Dataset preparation (stage:2)                        "
     echo ============================================================================
@@ -251,7 +253,6 @@ if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ] && [ ! -e ${data}/.done_stage_2
     touch ${data}/.done_stage_2_${datasize}_${unit}${wp_type}${vocab}_sp${speed_perturb} && echo "Finish creating dataset for ASR (stage: 2)."
 fi
 
-mkdir -p ${model}
 if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
     echo ============================================================================
     echo "                        LM Training stage (stage:3)                       "
@@ -264,11 +265,11 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         mkdir -p ${data}/dataset_lm
         for x in train dev_clean dev_other test_clean test_other; do
             if [ ${lm_datasize} = ${datasize} ]; then
-                cp ${data}/dataset/${x}_${datasize}_${unit}${wp_type}${vocab}.tsv \
-                    ${data}/dataset_lm/${x}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
+                cp ${data}/dataset/${x}${sp}_${datasize}_${unit}${wp_type}${vocab}.tsv \
+                    ${data}/dataset_lm/${x}${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
             else
                 make_dataset.sh --unit ${unit} --wp_model ${wp_model} \
-                    ${data}/${x} ${dict} > ${data}/dataset_lm/${x}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
+                    ${data}/${x} ${dict} > ${data}/dataset_lm/${x}${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv || exit 1;
             fi
         done
 
@@ -292,17 +293,17 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
         lm_train_set="${data}/dataset_lm/train_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv"
     fi
 
-    lm_test_set="${data}/dataset_lm/dev_other_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
-                 ${data}/dataset_lm/test_clean_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
-                 ${data}/dataset_lm/test_other_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv"
+    lm_test_set="${data}/dataset_lm/dev_other${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
+                 ${data}/dataset_lm/test_clean${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
+                 ${data}/dataset_lm/test_other${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv"
 
-    CUDA_VISIBLE_DEVICES=${gpu} ${NEURALSP_ROOT}/neural_sp/bin/lm/train.py \
+    $PYTHON ${NEURALSP_ROOT}/neural_sp/bin/lm/train.py \
         --corpus librispeech \
         --config ${lm_conf} \
         --n_gpus ${n_gpus} \
         --cudnn_benchmark ${benchmark} \
         --train_set ${lm_train_set} \
-        --dev_set ${data}/dataset_lm/dev_clean_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
+        --dev_set ${data}/dataset_lm/dev_clean${sp}_${lm_datasize}_vocab${datasize}_${unit}${wp_type}${vocab}.tsv \
         --eval_sets ${lm_test_set} \
         --unit ${unit} \
         --dict ${dict} \
